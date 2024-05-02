@@ -1,0 +1,20 @@
+PS C:\code\py_serialwifi_italo1> python .\smartmonitorserial1.py
+usage: smartmonitorserial1.py [-h] [--mode MODE] host port
+smartmonitorserial1.py: error: the following arguments are required: host, port
+PS C:\code\py_serialwifi_italo1>
+
+Pinning                                                                                     
+COM0 Rx <-> GPIO21                                                                               
+COM0 Tx <-> GPIO01                                                                                 
+COM1 Rx <-> GPIO16                                                                               
+COM1 Tx <-> GPIO17                                                                              
+COM2 Rx <-> GPIO15                                                                               
+COM2 Tx <-> GPIO04                                                                              
+
+python .\smartmonitorserial1.py 192.168.1.11 8880
+python .\smartmonitorserial1.py 192.168.1.11 8881
+python .\smartmonitorserial1.py 192.168.1.11 8882
+
+python .\smartmonitorserial1.py 192.168.1.11 8880 --mode HEX
+python .\smartmonitorserial1.py 192.168.1.11 8881 --mode HEX
+python .\smartmonitorserial1.py 192.168.1.11 8882 --mode HEX

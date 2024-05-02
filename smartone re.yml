@@ -1,0 +1,290 @@
+smartone reverse engineering:
+TX DE BAIXO
+RX DE CIMA
+
+
+How the program tries to find an device, but none is attached:
+
+    TX -> aa
+    TX -> aa 05 01 50 d5
+    TX -> aa 05 01 50 d5
+    TX -> aa 05 01 50 d5
+    
+    Display error message
+
+
+How the programs find an attached device, it automatically shows the ID and the firmware version on app:
+    TX -> aa aa 05 01 50 d5 //get the ID
+    TX -> aa 05 05 74 93 //get the firmware version
+    TX -> aa 05 02 cb e7 //unknown command
+    TX -> aa 06 fd 10 65 88 //unknown command
+    
+    RX -> aa 09 01 00 41 e7 86 8b b7 //reply the id
+    RX -> aa 08 05 02 05 06 02 c4 //reply the firmware version
+    RX -> aa 06 02 03 bf 55 //unknown response
+    RX -> aa 08 fd 10 9d 08 3f 58 //unknown response
+
+
+How the program read "diagnostic info" when button in clicked:
+  TX -> aa 05 01 50 d5 //get the ID
+  TX -> aa 05 01 50 d5 //get the ID again?
+  TX -> aa 05 44 f9 c0 //get the diagnostic info
+
+  RX -> aa 09 01 00 41 e7 86 8b b7 //reply the id
+  RX -> aa 1a 44 91 00 11 00 14 00 14 11 00 02 00 26 00 00 00 00 00 00 00 00 00 5a c6 //reply the diagnostic info
+
+
+Decoding some messages:
+    AA 05 01 -> request the ID  | D5 50 -> the checksum  -> user manual page 47  |  unsigned int esn = (message[4] << 16) | (message[5] << 8) | message[6];
+    AA 05 01 -> request the ID  | D5 50 -> the checksum  -> user manual page 47  |  unsigned int esn = (message[4] << 16) | (message[5] << 8) | message[6];
+
+
+How the data is formatted:
+
+Preamble | Length | Cmd    | Data                          | CRC
+1 byte   | 1 byte | 1 byte | Variable length 0 to 54 bytes | 2 bytes
+
+How to get the ID:
+  Message: TX -> aa 05 01 50 d5
+      Preamble: aa
+      Length: 05
+      Cmd: 01
+      Data: none
+      CRC: 50 d5
+      Purpose: request the ID
+      Expected response: 4 bytes, ex: aa 09 01 00 41 e7 86 8b b7
+
+  Message: RX -> aa 09 01 00 41 e7 86 8b b7
+      Preamble: aa
+      Length: 09
+      Cmd: 01
+      Data: 00 41 e7 86  (in decimal 4319110)
+      CRC: 8b b7
+      Purpose: response to the ID request
+
+How to get the firmware version:
+  Message: TX -> aa 05 05 74 93
+      Preamble: aa
+      Length: 05
+      Cmd: 05
+      Data: none
+      CRC: 74 93
+      Purpose: request the firmware version
+      Expected response: aa 08 05 02 05 06 02 c4
+
+  Message: RX -> aa 08 05 02 05 06 02 c4
+      Preamble: aa
+      Length: 08
+      Cmd: 05
+      Data: 02 05 06 .  Firmware is major minor patch int hex, 2.5.6 
+      CRC: 02 c4
+      Purpose: response to the firmware version request
+
+unknow command:
+  Message: TX -> aa 05 02 cb e7
+      Preamble: aa
+      Length: 05
+      Cmd: 02
+      Data: none
+      CRC: cb e7
+      Purpose: unknow command
+      Expected response: ? 
+  
+  Message: RX-> aa 06 02 03 bf 55
+      Preamble: aa
+      Length: 06
+      Cmd: 02
+      Data: 03
+      CRC: bf 55
+      Purpose: response to the unknow command
+
+unknow command:
+  Message: TX -> aa 06 fd 10 65 88
+      Preamble: aa
+      Length: 06
+      Cmd: fd
+      Data: 10 65
+      CRC: 88
+      Purpose: unknow command
+      Expected response: ?
+  
+  Message: RX -> aa 08 fd 10 9d 08 3f 58
+      Preamble: aa
+      Length: 08
+      Cmd: fd
+      Data: 10 9d 08
+      CRC: 3f 58
+      Purpose: response to the unknow command
+
+
+
+How to get diagnostic info (sent by app):
+  Message: TX -> aa 05 44 f9 c0
+      Preamble: aa
+      Length: 05
+      Cmd: 44
+      Data: none
+      CRC: f9 c0
+      Purpose: request the diagnostic info
+      Expected response: aa 1a 44 91 00 11 00 14 00 14 11 00 02 00 26 00 00 00 00 00 00 00 00 00 5a c6
+
+  Message: RX -> aa 1a 44 91 00 11 00 14 00 14 11 00 02 00 26 00 00 00 00 00 00 00 00 00 5a c6
+      Preamble: aa
+      Length: 1a
+      Cmd: 44
+      Data: 91 00 11 00 14 00 14 11 00 02 00 26 00 00 00 00 00 00 00 00 00
+      CRC: 5a c6
+      Purpose: response to the diagnostic info request
+      Decoding:
+        - 91 00 - Status code indicating current mode and battery status. Requires further mapping for detailed interpretation.
+        - 20 00 - Time to End of Interval: 32 minutes.
+        - 00 00 - Time since last Input 1 Change: 0 minutes.
+        - 00 00 - Time since last Input 2 Change: 0 minutes.
+        - 11 00 - GPS Mean Search Time: 17 seconds.
+        - 02 - Number of GPS Failures Since Last Diagnostic Message: 2.
+        - 00 26 - Number of Transmissions Since Last Diagnostic Message: 38.
+        - The remaining bytes (`00 00` x 5) represent zero values for Input 1 & 2 Accumulation Time and Vibration Accumulation Time, as well as Input 1 & 2 Count Values.
+
+      What the program reported:
+          Diagnostic Information for ESN - 4319110
+        Current Mode:
+          SMARTONE is in the At Rest Interval
+          SMARTONE Battery is in need of replacement!!!
+        Time to End of Interval:
+          0 day(s), 0 hour(s), 32 min(s)
+        Time since last Input 1 Change to State of Interest:
+          0 day(s), 0 hour(s), 0 min(s)
+        Time since last Input 2 Change to State of Interest:
+          0 day(s), 0 hour(s), 0 min(s)
+        GPS Mean Search Time:
+          0 min(s), 17 second(s)
+        Number of GPS Failures Since Last Diagnostic Message:
+          2
+        Number of Transmissions Since Last Diagnostic Message:
+          38
+        Input 1 Accumulation Time:
+          0 day(s), 0 hour(s), 0 min(s)
+        Input 2 Accumulation Time:
+          0 day(s), 0 hour(s), 0 min(s)
+        Vibration Accumulation Time:
+          0 day(s), 0 hour(s), 0 min(s)
+        Input 1 Count Value:
+          0
+        Input 2 Count Value:
+          0
+
+
+Sending an raw message tranmission request:
+  Message: TX -> aa 0e 27 3f ff ff ff ff ff ff ff ff 84 d5
+      Preamble: aa
+      Length: 0e
+      Cmd: 27
+      Data: 3f ff ff ff ff ff ff ff ff
+      CRC: 84 d5
+      Purpose: request the raw message transmission
+      Expected response: aa 05 27 64 91
+
+
+Sending an location message tranmission request:
+  Message: TX -> aa 05 2a 81 4a
+      Preamble: aa
+      Length: 05
+      Cmd: 2a
+      Data: none
+      CRC: 81 4a
+      Purpose: request the location message
+      Expected response: aa 05 2a 81 4a
+
+  Message: RX -> nothing - has no view of sky and failed probably
+  Message: RX -> aa 05 2a 81 4a
+      Preamble: aa
+      Length: 05
+      Cmd: 2a
+      Data: none
+      CRC: 81 4a
+      Purpose: response to the location message request (when sky view is available)
+
+
+
+Sending an diagnostic message tranmission request:
+  Message: TX -> aa 05 29 1a 78
+      Preamble: aa
+      Length: 05
+      Cmd: 29
+      Data: none
+      CRC: 1a 78
+      Purpose: request the diagnostic message
+
+  Message: RX ->  aa 05 29 1a 78
+      Preamble: aa
+      Length: 05
+      Cmd: 29
+      Data: none
+      CRC: 1a 78
+      Purpose: response to the diagnostic message request
+
+
+
+Sending an raw message tranmission request (worked):
+  Message: TX -> aa 0e 27 2b cd ef ab cd ef ab cd ef ff 62
+      Preamble: aa
+      Length: 0e
+      Cmd: 27
+      Data: 2b cd ef ab cd ef ab cd ef
+      CRC: ff 62
+
+  What arrived at site: 2ACDEFABCDEFABCDEF
+  note:
+      2b in binary = 0010 1011 last two bits are 11 but the device will modify these bits to 10 because the message to be sent is a type 2 message
+      2a in binary = 0010 1010 last two bits are 10 so type 2
+      
+      
+Sending an raw message tranmission request with another data (virloc formatted data):
+  Message: TX -> aa 0e 27 02 80 14 08 00 01 40 79 14 2f 0c
+      Preamble: aa
+      Length: 0e
+      Cmd: 27
+      Data: 02 80 14 08 00 01 40 79 14
+      CRC: 2f 0c
+
+      02 in binary = 0000 0010 last two bits are 10 so type 2
+
+  What arrived at site: 028014080001407914
+      Raw data:
+      <?xml version="1.0" encoding="UTF-8"?>
+      <stuMessages xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://cody.glpconnect.com/XSD/StuMessage_Rev1_0.xsd" timeStamp="29/02/2024 23:39:29 GMT" messageID="dbd05cc06e121006885fcc16c9004d4f">
+      <stuMessage>
+      <esn>0-4319110</esn>
+      <unixTime>1709249985</unixTime>
+      <gps>N</gps>
+      <payload length="9" source="pc" encoding="hex">0x028014080001407914</payload>
+      </stuMessage>
+      </stuMessages>
+
+      Decoded data:
+      transmission_type = Raw 2 digital_inputs => 80 operation_code => 5128 horimeter_raw => 20 main_power => 121 gps_speed => 20 horimeter_dec => 20 main_power_dec => 12.1 
+
+
+
+[0;32m[  6994][I][Blink.cpp:471] message_0_virloc(): [Telemetry Data] 02 80 14 08 00 01 40 79 14[0m
+[0;32m[  7004][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] aa [0m
+[0;32m[  7011][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] 0e [0m
+[0;32m[  7019][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] 27 [0m
+[0;32m[  7026][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] 02 [0m
+[0;32m[  7034][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] 80 [0m
+[0;32m[  7042][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] 14 [0m
+[0;32m[  7050][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] 08 [0m
+[0;32m[  7057][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] 00 [0m
+[0;32m[  7065][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] 01 [0m
+[0;32m[  7073][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] 40 [0m
+[0;32m[  7080][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] 79 [0m
+[0;32m[  7088][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] 14 [0m
+[0;32m[  7096][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] 2f [0m
+[0;32m[  7104][I][Blink.cpp:237] sendCustomRawMessage(): [SmartOneC DEBUG TX!] 0c [0m
+
+
+
+msg que o esp enviou: aa 0e 27 02 80 14 08 00 01 40 79 14 2f 0c 
+msg que o smartone app enviou: aa 0e 27 02 80 14 08 00 01 40 79 14 2f 0c
+
+Resultado: Igual...
